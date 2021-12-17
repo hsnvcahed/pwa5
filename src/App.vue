@@ -68,7 +68,32 @@
         <input v-model="newName" class="form-control" type="text" />
       </div>
       <div class="col-1">
-        <button class="btn btn-primary">Change!</button>
+        <button class="btn btn-primary" @click="updateFriend">Change!</button>
+      </div>
+    </div>
+    <div class="mt-3 row align-items-center">
+      <div class="col-1">
+        <span>From Age:</span>
+      </div>
+      <div class="col-2">
+        <input @focus="searchResult = false" v-model="fromAge" class="form-control" type="text" />
+      </div>
+      <div class="col-1">
+        <span>To Age:</span>
+      </div>
+      <div class="col-2">
+        <input @focus="searchResult = false" v-model="toAge" class="form-control" type="text" />
+      </div>
+      <div class="col-1">
+        <button class="btn btn-primary" @click="getFriendsWithAge">Find!</button>
+      </div>
+      <div class="col-3">
+        <div v-if="ageResult && agefriends != null">
+          <span class="fw-bold" v-for="(friend, id) in agefriends" :key="id">
+            Found: {{ friend.name.first }} {{ friend.name.last }}, {{ friend.age }}
+          </span>
+        </div>
+        <span v-else-if="ageResult" class="fw-bold text-danger">Not found</span>
       </div>
     </div>
   </div>
@@ -81,6 +106,8 @@ export default {
   name: 'App',
   data() {
     return {
+      fromAge: '',
+      toAge: '',
       friends: [
         {
           id: 1,
@@ -130,6 +157,8 @@ export default {
       storedFriends: [],
       oldName: 'Bridges',
       newName: 'Cerny',
+      agefriends: [],
+      ageResult: false,
     };
   },
 
@@ -137,7 +166,9 @@ export default {
     async setupDB() {
       this.db = await openDB('friendsDB1', 1, {
         upgrade(db, oldVersion, newVersion) {
-          db.createObjectStore('friends', { keyPath: 'id' });
+          const store = db.createObjectStore('friends', { keyPath: 'id' });
+          store.createIndex('lastname', 'name.last', { unique: true });
+          store.createIndex('age', 'age', { unique: false });
         },
       });
       this.getStoredFriends();
@@ -169,6 +200,26 @@ export default {
         this.searchResult = true;
         this.friend = null;
       }
+    },
+    async updateFriend() {
+      const tx = this.db.transaction('friends', 'readwrite');
+      const index = tx.store.index('lastname');
+      const obj = await index.get(this.oldName);
+      console.log(obj);
+
+      obj.name.last = this.newName;
+      tx.done;
+      await this.db.put('friends', obj);
+      this.getStoredFriends();
+    },
+    async getFriendsWithAge() {
+      console.log('HERE');
+      const range = IDBKeyRange.bound(Number(this.fromAge), Number(this.toAge), true, true);
+      const res = await this.db.getAllFromIndex('friends', 'age', range);
+      console.log(res);
+
+      this.ageResult = true;
+      this.agefriends = res;
     },
   },
   created() {
